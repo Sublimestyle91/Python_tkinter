@@ -1,0 +1,405 @@
+#=====================import the gui tkinter module
+from tkinter import *
+from tkinter import ttk
+from tkinter import messagebox
+
+#=============imports for sound=========================================
+import pygame
+from pygame import mixer as m
+pygame.init()
+
+#=============imports for graph=========================================
+import matplotlib
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+
+#==============================functions================================
+def plotGraph():
+	"""This function will plot the graph(s) and put labels on the graph"""
+	global sample_val2copy, temp_val2copy, sample_valcopy, temp_valcopy
+	figure = Figure(figsize = (10,5), dpi = 70)
+	#	 This gives the graph a title
+	figure.suptitle('Temperature vs Time', fontsize = 16)
+
+
+	a = figure.add_subplot(111)			 # adds a subplot to the figure
+									 # 111 stands for how many subplots there are
+
+	a.plot(sample_valcopy,temp_valcopy, marker = 'o')			 # plots a graph on the figure
+	if averagetemp2.get() > 0:
+		a.plot(sample_val2copy, temp_val2copy, marker = 'o')
+	a.set_xlabel('Time', fontsize = 16)
+	a.set_ylabel('Temperature', fontsize = 16)
+	a.grid()                             # puts a grid on the grapp
+
+	canvas = FigureCanvasTkAgg(figure, master = win)     # makes figure on canvas
+	canvas.draw()										 # draws the figure
+
+	graph_widget = canvas.get_tk_widget()
+	graph_widget.grid(row = 5, column = 1, columnspan = 20, rowspan = 20, sticky = 'nsew')
+
+	
+		
+def GetData(event):
+	"""This function will get data from one or two data sets
+	It will then calculate high and average temps
+	it will turn on the radiobuttons"""
+	global sample_val, temp_val, fahren, sample_val, sample_size, song, opened, temp_val2, sample_val2, ChangeTemp_Bool
+	global temp_valcopy, sample_valcopy, temp_val2copy, sample_val2copy
+	sample_val = list()
+	temp_val   = list()
+	sample_val2 = list()
+	temp_val2   = list()
+	fahren = True
+	
+	# open the file and get the data
+	try:
+		f_object = open(Textfile.get(), "r")                       # try to open file
+	except IOError:
+		messagebox.showinfo("Error", "File not found")             # if you can't open file
+		return
+	try:
+		f_object2 =open(Textfile2.get(), "r")                      # open second file
+		opened = True
+	except IOError:
+		if Textfile2.get() != "":                                  # if you can't open second file give error message
+			messagebox.showinfo("Error", "File not found")
+			averagetemp2.set(0)
+			hightemp2.set(0)
+			return
+		averagetemp2.set(0)
+		hightemp2.set(0)
+	lines = f_object.read()                                         # make object into lines
+	lines2 = re.split('\\n|,',lines)                                # split into list by ',' and '\\n'
+	lines2 = lines2[:-1]
+	for i,j in zip(range(int(len(lines2)/2)), range(int(len(lines2)/2))):    # put the sample number into one list and put value into another (could actually just make one list of list
+		sample_val.append(int(lines2[2*i]))
+		temp_val.append(float(lines2[2*j+1]))
+		
+	#find the average
+	average_temp =0
+	high_temp = 0
+	for i in temp_val:
+		average_temp += i
+	average_temp = round((average_temp/ len(sample_val)), 2)
+	averagetemp.set(average_temp)
+	
+	#get the high value
+	for i in temp_val:
+		if high_temp < i:
+			high_temp = i
+	hightemp.set(high_temp)
+	
+	
+	#================for object 2=======================================
+	if(opened):
+		lines = f_object2.read()
+		lines2 = re.split('\\n|,',lines)
+		lines2 = lines2[:-1]
+		for i,j in zip(range(int(len(lines2)/2)), range(int(len(lines2)/2))):
+			sample_val2.append(int(lines2[2*i]))
+			temp_val2.append(float(lines2[2*j+1]))
+		f_object2.close()
+	#find the average
+		average_temp =0
+		high_temp = 0
+		for i in temp_val2:
+			average_temp += i
+		average_temp = round((average_temp/ len(sample_val2)), 2)
+		averagetemp2.set(average_temp)
+	
+	#get the high value
+		for i in temp_val2:
+			if high_temp < i:
+				high_temp = i
+		hightemp2.set(high_temp)
+	
+	# set flag to False. Shows that file 2 was opened
+		opened = False
+	
+	# reset button, put labels on graph and play song
+	CheckVar.set(0)                 # set the button back to zero
+	Degree1.set('°C')               # print a C degree to scree
+	Degree2.set('°C')			    # print the otherone
+	song = True                     # start the song when file is loaded set flag
+	play()							# go to play function to start music
+	
+	# make the radiobuttons work and entries and then call function for the correct temp values
+	celsius.configure(state = NORMAL)
+	fahrenheit.configure(state = NORMAL)
+	hours.configure(state = NORMAL)
+	minutes.configure(state = NORMAL)
+	seconds.configure(state = NORMAL)
+	text3.configure(state = NORMAL)
+	text4.configure(state = NORMAL)
+	Temperature.set('celsius')                          # start off with celsius
+	ChangeTemp_Bool = False                             # flag to say it is celsius
+	
+	
+	# copy axes inside of temp_val and stuff
+	# making copies so we have original and then can also edit and make copies smaller
+	temp_valcopy = temp_val.copy()                      
+	temp_val2copy = temp_val2.copy()
+	sample_valcopy = sample_val.copy()
+	sample_val2copy = sample_val2.copy()
+	
+	# set axes to seconds (default value is seconds for tk variable)
+	changeaxescopy()             # set copy lists to seconds
+	changeaxes()                 # set original list to secons
+	if sample_valcopy[-1] >= sample_val2copy[-1]:
+		Textfile4.set(sample_valcopy[-1])
+	else:
+		Textfile4.set(sample_val2copy[-1])
+	
+	#plot the graph nowA
+	plotGraph()	
+	f_object.close()                            # MAKE SURE YOU CLOSE THE FILES	
+
+
+def play():
+	""" This function will play a song"""
+	global song
+	try:
+		if(song):
+			m.music.load('S.mp3')             # load song
+			m.music.play(-1)                  # play song
+		else:
+			m.music.stop()                    # if song is false then music is not on
+		switchplaystop()			          # this function makes the button red or green depending on whether song = True or not
+		song = not song                       # toggle because it has been pressed
+	except:
+		pass
+	
+
+def switchplaystop():
+	"""This function changes the play button from green to red"""
+	global song, soundbuttoncolor
+	if song:
+		Soundbutton.configure(background ="red", text = 'stop')                   # red button with 'stop'
+	else:
+		Soundbutton.configure(background="green", text = 'play', fg = 'white')     # green button with 'play' and white writing
+		
+def changeaxescopy():
+	"""This function will change the axes from minutes, hours, seconds"""
+	if phone.get() == 'hours':
+		for index,value in enumerate(sample_val):
+			sample_val[index] = index / ((1/sample_size)*3600)                    # changes samples to hours units
+		if averagetemp2.get() >0:
+			for index,value in enumerate(sample_val2):
+				sample_val2[index] = index / ((1/sample_size)*3600)               # samples to hours for second file
+	elif phone.get() == 'minutes':
+		for index,value in enumerate(sample_val):
+			sample_val[index] = index / ((1/sample_size)*60)  #1 sample / 2 seconds  *60 seconds /minute
+		if averagetemp2.get() >0:
+			for index,value in enumerate(sample_val2):
+				sample_val2[index] = index / ((1/sample_size)*60)                  # samples to minutes for second file
+	elif phone.get() == 'seconds':
+		for index,value in enumerate(sample_val):
+			sample_val[index] = index / (1/sample_size)                            # samples to seconds conversion
+		if averagetemp2.get() >0:
+			for index,value in enumerate(sample_val2): 
+				sample_val2[index] = index / (1/sample_size)                       # samples to seconds conversion for second file
+	plotGraph()    # if I have this function here then I can't use focus for some reason
+def changeaxes():
+	"""This function will change the axes from minutes, hours, seconds"""
+	if phone.get() == 'hours':
+		for index,value in enumerate(sample_valcopy):
+			sample_valcopy[index] = index / ((1/sample_size)*3600)
+		if averagetemp2.get() >0:
+			for index,value in enumerate(sample_val2copy):
+				sample_val2copy[index] = index / ((1/sample_size)*3600)
+	elif phone.get() == 'minutes':
+		for index,value in enumerate(sample_valcopy):
+			sample_valcopy[index] = index / ((1/sample_size)*60)  #1 sample / 2 seconds  *60 seconds /minute
+		if averagetemp2.get() >0:
+			for index,value in enumerate(sample_val2copy):
+				sample_val2copy[index] = index / ((1/sample_size)*60)
+	elif phone.get() == 'seconds':
+		for index,value in enumerate(sample_valcopy):
+			sample_valcopy[index] = index / (1/sample_size)
+		if averagetemp2.get() >0:
+			for index,value in enumerate(sample_val2copy):
+				sample_val2copy[index] = index / (1/sample_size)
+	plotGraph()    # if I have this function here then I can't use focus for some reason
+	
+def ChangeTemp():
+	"""This function will change all the temps from celsius to fahrenheit or the other way"""
+	global ChangeTemp_Bool, temp_valcopy, temp_val2copy, sample_val2copy, sample_valcopy
+	if Temperature.get() == 'fahrenheit' and not ChangeTemp_Bool:   # if the value is fahrenheit and changeTemp bool false
+		for index, value in enumerate(temp_valcopy):
+			temp_valcopy[index] = temp_valcopy[index]*1.8 +32
+		high_temp = hightemp.get()                                # how to get a number from DoubleVar() value
+		average_temp = averagetemp.get()						  # get current average temp (in fahrenheit
+		high_temp = round((1.8*high_temp+32),2)                    # conver to celsius
+		average_temp = round((1.8*average_temp+32),2)             # coversion to celsiu
+		hightemp.set(high_temp)                                   # make label have new coverted high temp     
+		averagetemp.set(average_temp)                             # make labe have new covereted average temp
+		Degree1.set('°F')                                         # switch degree labels to celsius
+		Degree2.set('°F')
+		if averagetemp2.get() >0:                                 # this is sort of abritrary, just testing if there is a second file opened
+			for index, value in enumerate(temp_val2copy):
+				temp_val2copy[index] = temp_val2copy[index]*1.8 +32
+			high_temp = hightemp2.get()                                # how to get a number from DoubleVar() value
+			average_temp = averagetemp2.get()
+			high_temp = round((1.8*high_temp+32),2)                    # convert second high_temp
+			average_temp = round((1.8*average_temp+32),2)				# covert average temp
+			hightemp2.set(high_temp)									# store ne hight temp
+			averagetemp2.set(average_temp)
+		ChangeTemp_Bool = True											# toggle boolean because it is in farehenheit now
+	elif Temperature.get() == 'celsius' and ChangeTemp_Bool:
+		for index, value in enumerate(temp_valcopy):
+			temp_valcopy[index] = (temp_valcopy[index]-32)/1.8          # covert to celsius
+		average_temp = averagetemp.get()
+		high_temp = hightemp.get()
+		high_temp = round(((high_temp -32)/1.8),2)                      # covert old high temp
+		average_temp = round(((average_temp -32)/1.8),2)
+		hightemp.set(high_temp)
+		averagetemp.set(average_temp)
+		Degree1.set('°C')
+		Degree2.set('°C')
+		if averagetemp2.get() >0:
+			for index, value in enumerate(temp_val2copy):
+				temp_val2copy[index] = (temp_val2copy[index]-32)/1.8
+			high_temp = hightemp2.get()                                # how to get a number from DoubleVar() value
+			average_temp = averagetemp2.get()
+			high_temp = round(((high_temp -32)/1.8),2)
+			average_temp = round(((average_temp -32)/1.8),2)
+			hightemp2.set(high_temp)
+			averagetemp2.set(average_temp)
+		ChangeTemp_Bool = False
+	plotGraph()
+	
+def narrowaxes(event):
+	""" This function will make it possible to change the x axis 
+	Thus you can get a closer image of a certain section"""
+	global temp_valcopy, sample_valcopy, temp_val2copy, sample_val2copy       # load all the global variables
+	# make sure to empty the copy lists because you are changing the axes
+	temp_valcopy = list()
+	sample_valcopy = list()
+	sample_val2copy = list()
+	temp_val2copy   = list()
+	changeaxescopy()
+	try:
+		for index, value in enumerate(sample_val):                            # this part makes a copy of a list in the new boundaries specified by the user
+			if value >= Textfile3.get() and value <= Textfile4.get():
+				sample_valcopy.append(sample_val[index])
+				temp_valcopy.append(temp_val[index])
+		for index, value in enumerate(sample_val2):                           # This part makes a copy of a list for the second file open specified by the user
+			if value >= Textfile3.get() and value <= Textfile4.get():
+				sample_val2copy.append(sample_val2[index])
+				temp_val2copy.append(temp_val2[index])
+	except TclError:
+		messagebox.showinfo("Error", "Please enter a number")
+	plotGraph()
+	
+#=======================================================================	
+#==============================globals=================================
+temp_valcopy = list()
+sample_valcopy = list()
+temp_val2copy = list()
+sample_val2copy = list()
+temp_val = list()
+sample_val= list()
+temp_val2 = list()
+sample_val2= list()
+sample_size = 2.0
+song = True
+ChangeTemp_Bool = False
+opened = False
+
+
+
+
+
+
+win = Tk()
+win.title("Temperature Data")
+
+#==============================tk variables=============================
+#***********************************************************************
+#=======================================================================
+hightemp= DoubleVar()
+hightemp2 = DoubleVar()
+averagetemp = DoubleVar()
+averagetemp2 = DoubleVar()
+CheckVar = IntVar()
+Degree1 = StringVar()
+Degree2 = StringVar()
+Textfile = StringVar()				 #File 3 value
+Textfile2 = StringVar()				 #File 2 value
+Textfile3 = DoubleVar()              #Low X range value
+Textfile4 = DoubleVar()				 #Upper x range value
+phone = StringVar()
+phone.set('seconds')
+Temperature = StringVar()
+Temperature.set('celsius')
+#===============================Radiobutton================================
+celsius = Radiobutton(win, text = 'Celsius', variable = Temperature, value = 'celsius', command = ChangeTemp)
+fahrenheit = Radiobutton(win, text = 'Fahrenheit', variable = Temperature, value = 'fahrenheit', command = ChangeTemp)
+hours = Radiobutton(win, text='Hours', variable=phone, value='hours', command = changeaxes)
+minutes = Radiobutton(win, text='Minutes', variable=phone, value='minutes', command = changeaxes)
+seconds = Radiobutton(win, text='Seconds', variable=phone, value='seconds', command = changeaxes)
+hours.grid(row = 6, column = 0, sticky = W)
+minutes.grid(row = 7, column = 0, sticky = W)
+seconds.grid(row = 8, column = 0, sticky = W)
+celsius.grid(row = 10, column = 0, sticky = W)
+fahrenheit.grid(row = 11, column = 0, sticky = W)
+#===============================DisableRadiobuttons======================
+celsius.configure(state = DISABLED)
+fahrenheit.configure(state = DISABLED)
+hours.configure(state = DISABLED)
+minutes.configure(state = DISABLED)
+seconds.configure(state = DISABLED)
+
+#===============================Entries================================
+text= ttk.Entry(win, textvariable=Textfile)             # file 1
+text.grid(row = 0, column = 0, padx = 5, pady = 5)
+text2 = ttk.Entry(win, textvariable=Textfile2)          # file 2
+text2.grid(row = 1, column = 0, padx = 5, pady = 5)
+text3 = ttk.Entry(win, textvariable=Textfile3)          # x range
+text3.grid(row = 13, column = 0, padx = 5, pady = 5)
+text3.configure(state = DISABLED)
+text4 = ttk.Entry(win, textvariable=Textfile4) 
+text4.grid(row = 15, column = 0, padx = 5, pady = 5)
+text4.configure(state = DISABLED)
+
+
+#===============================Buttons================================
+button = Button(win, text = "Find", fg = 'white', bg = 'green')            # you could also write command = lambda: GetData()
+button.grid(row=0, column = 1, padx= 5, pady = 5)
+
+#================================labels==================================
+ttk.Label(win, textvariable = Degree1).grid(  row = 1, column = 5,  padx = 5, pady = 5, sticky=W)
+ttk.Label(win, textvariable = Degree2).grid(  row = 2, column = 5,  padx = 5, pady = 5, sticky=W)
+ttk.Label(win, textvariable = hightemp).grid(row=1, column = 4, padx = 5, pady = 5, sticky = W)
+ttk.Label(win, textvariable = averagetemp).grid(row=2, column=4, padx =5, pady =5, sticky = W)
+ttk.Label(win, text="High Temperature").grid(row = 1, column = 3,  padx = 5, pady = 5, sticky=W)
+ttk.Label(win, text="Average Temperature").grid(row = 2, column = 3, padx =5, pady =5, sticky =W)
+ttk.Label(win, text="Temperature Scale").grid(row = 9, column = 0, padx =5, pady =5, sticky =W)
+ttk.Label(win, text="Time Scale").grid(row = 5, column = 0, padx =5, pady =5, sticky =W)
+ttk.Label(win, text="Low X Range").grid(row = 12, column = 0, padx =5, pady =5, sticky =W)
+ttk.Label(win, text="Upper X Range").grid(row = 14, column = 0, padx =5, pady =5, sticky =W)
+
+#================================labels=========================================================
+ttk.Label(win, textvariable = Degree1).grid(  row = 1, column = 8,  padx = 5, pady = 5, sticky=W)
+ttk.Label(win, textvariable = Degree2).grid(  row = 2, column = 8,  padx = 5, pady = 5, sticky=W)
+ttk.Label(win, textvariable = hightemp2).grid(row=1, column = 7, padx = 5, pady = 5, sticky = W)
+ttk.Label(win, textvariable = averagetemp2).grid(row=2, column=7, padx =5, pady =5, sticky = W)
+ttk.Label(win, text="High Temperature").grid(row = 1, column = 6,  padx = 5, pady = 5, sticky=W)
+ttk.Label(win, text="Average Temperature").grid(row = 2, column = 6, padx =5, pady =5, sticky =W)
+#=================================Sounds===================================
+Soundbutton = Button(win, text = 'Play', command = play, bg = 'Green', fg = 'white')
+Soundbutton.grid(row = 0, column =20, padx =5, pady= 5, sticky = W)
+
+#================================Bindings=================================================
+"""These lines will bind certain keys to the buttons"""
+button.bind('<Button-1>', GetData)           
+text.bind('<Return>', GetData)
+text2.bind('<Return>', GetData)
+text3.bind('<Return>', narrowaxes)
+text4.bind('<Return>', narrowaxes)
+text.focus()                                 # the user can type in the file area
+win.mainloop()
+
+
+
